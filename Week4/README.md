@@ -1,3 +1,5 @@
 Week4 Workflow
-Joe: Persistence diagram of normal point in 3D and 4D with ECC from VR filtration.
+
+Joe:Create a code that outputs point clouds of shapes (gaussian (normal), circle, cylinder, torus) in any chosen dimension and analyzes their ECC via Vietoris–Rips filtrations. Code also visualizes the results simultaneously as a point cloud, persistence diagram, and Euler characteristic curve.
+
 Sergio: Pairwise distances of points as dimension increases. Trying with different shapes.
