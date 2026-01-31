@@ -339,4 +339,83 @@ class ECCApp(tk.Tk):
             if max_radius <= 0:
                 raise ValueError("max_radius_length must be > 0.")
             if max_simp < 1:
-                raise ValueError("max_simplex_dim 
+                raise ValueError("max_simplex_dim must be >= 1.")
+            if steps < 10:
+                raise ValueError("ECC steps must be >= 10.")
+            if noise < 0:
+                raise ValueError("Noise must be >= 0.")
+        except Exception as e:
+            messagebox.showerror("Invalid input", f"Please check your inputs.\n\nDetails: {e}")
+            return
+
+        self._log("----- Running -----")
+        self._log(f"shape={shape_label}, dim={dim}, n_points={n_points}, max_radius_length={max_radius}, max_simplex_dim={max_simp}, seed={seed}")
+
+        try:
+            # 1) Data
+            X = sample_point_cloud(
+                shape=shape,
+                n_points=n_points,
+                ambient_dim=dim,
+                seed=seed,
+                noise=noise,
+                circle_radius=1,
+                cylinder_radius=1,
+                cylinder_height=2,
+                Torus_R=2,
+                Torus_r=0.7,
+                rotate=True,
+            )
+
+            # 2) VR filtration
+            st = build_vr_simplex_tree(X, max_radius, max_simp)
+            self._log(f"Total simplices: {st.num_simplices()}")
+
+            # 3) Persistence
+            pers_counts = compute_persistence_counts(st)
+            for d in sorted(pers_counts):
+                self._log(f"H{d} intervals: {pers_counts[d]}")
+
+            # 4) ECC
+            t, ecc = compute_ecc(st, n_steps=steps)
+
+            # 5) ONE figure: point cloud + persistence diagram + ECC
+            fig = plt.figure(figsize=(14, 4))
+
+            # Panel 1: point cloud
+            if dim == 3:
+                ax1 = fig.add_subplot(1, 3, 1, projection="3d")
+            else:
+                ax1 = fig.add_subplot(1, 3, 1)
+            plot_point_cloud_on_ax(ax1, X, dim)
+
+            # Panel 2: persistence diagram
+            ax2 = fig.add_subplot(1, 3, 2)
+            plot_persistence_diagram(ax2, st)
+
+            # Panel 3: ECC
+            ax3 = fig.add_subplot(1, 3, 3)
+            ax3.plot(t, ecc)
+            ax3.set_xlabel("filtration threshold")
+            ax3.set_ylabel("Euler characteristic χ(t)")
+            ax3.set_title("ECC")
+
+            fig.suptitle(f"VR results (shape={shape_label}, dim={dim}, n={n_points}, max_radius={max_radius}, max_simp={max_simp})")
+            fig.tight_layout()
+            plt.show()
+
+            self._log("Done. (All 3 plots shown in one window.)")
+
+        except Exception as e:
+            messagebox.showerror(
+                "Computation error",
+                "Something went wrong (often VR got too large).\n"
+                "Try smaller n_points, smaller max_radius_length, or smaller max_simplex_dim.\n\n"
+                f"Details: {e}"
+            )
+            self._log(f"ERROR: {e}")
+
+
+if __name__ == "__main__":
+    app = ECCApp()
+    app.mainloop()
