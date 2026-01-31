@@ -1,4 +1,5 @@
 # Make sure you installed: pip install numpy matplotlib gudhi
+# Joseph Matatyaou
 
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -75,17 +76,17 @@ def plot_point_cloud_on_ax(ax, X: np.ndarray, dim: int):
 
     if dim == 2:
         ax.scatter(X[:, 0], X[:, 1], s=10)
-        ax.set_xlabel("x1")
-        ax.set_ylabel("x2")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
         ax.set_title("Point cloud (2D)")
         ax.axis("equal")
         return
 
     if dim == 3:
         ax.scatter(X[:, 0], X[:, 1], X[:, 2], s=10)
-        ax.set_xlabel("x1")
-        ax.set_ylabel("x2")
-        ax.set_zlabel("x3")
+        ax.set_xlabel("x")
+        ax.set_ylabel("y")
+        ax.set_zlabel("z")
         ax.set_title("Point cloud (3D)")
         return
 
@@ -187,6 +188,7 @@ def sample_point_cloud( #shape generator
     cylinder_height: float = 2.0,
     Torus_R: float = 2.0,
     Torus_r: float = 0.7,
+    sphere_radius: float = 1.0,
     rotate: bool = True,
 ) -> np.ndarray:
     """
@@ -216,6 +218,22 @@ def sample_point_cloud( #shape generator
         r = np.maximum(r, 1e-6)
         X0 = np.column_stack([r * np.cos(theta), r * np.sin(theta)])  #polar to cartesian conversion
         return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate)
+    
+    if shape == "sphere":
+        if ambient_dim < 3:
+            raise ValueError("Sphere needs ambient_dim >= 3.")
+
+        # Sample directions uniformly on S^2
+        v = rng.normal(size=(n_points, 3))
+        v /= np.linalg.norm(v, axis=1, keepdims=True)
+
+        # Gaussian thickness around the sphere: radius = R + N(0, noise)
+        rad = sphere_radius + (rng.normal(0.0, noise, size=n_points) if noise > 0 else np.zeros(n_points))
+        rad = np.maximum(rad, 1e-6)
+
+        X0 = v * rad[:, None]  # (n_points, 3)
+        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate)
+    
 
     if shape == "cylinder":
         if ambient_dim < 3:
@@ -246,7 +264,7 @@ def sample_point_cloud( #shape generator
         X0 = np.column_stack([x, y, z])  # R^3
         return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate)
 
-    raise ValueError(f"Unknown shape: {shape}. Choose normal blob, circle, cylinder, torus.")
+    raise ValueError(f"Unknown shape: {shape}. Choose normal blob, circle, sphere, cylinder, torus.")
 
 
 # GUI 
@@ -254,27 +272,27 @@ def sample_point_cloud( #shape generator
 class ECCApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("VR Filtration → Point Cloud + Persistence Diagram + ECC")
+        self.title("ECC with Vietoris–Rips App")
         self.geometry("600x520")
         self._build_ui()
 
     def _build_ui(self):
         pad = {"padx": 10, "pady": 6}
 
-        title = ttk.Label(self, text="Normal Point Cloud → VR → PD + ECC", font=("Helvetica", 14, "bold"))
+        title = ttk.Label(self, text="Point Cloud → Vietoris–Rips → Persistence Diagram + ECC", font=("Helvetica", 14, "bold"))
         title.pack(pady=10)
 
         frm = ttk.Frame(self)
         frm.pack(fill="x", **pad)
 
         self.dim_var = tk.StringVar(value="3")
-        self.npoints_var = tk.StringVar(value="200")
+        self.npoints_var = tk.StringVar(value="100")
         self.maxradius_var = tk.StringVar(value="2.0")
-        self.maxsimp_var = tk.StringVar(value="3")
+        self.maxsimp_var = tk.StringVar(value="2")
         self.seed_var = tk.StringVar(value="1")
         self.steps_var = tk.StringVar(value="250")
         self.shape_var = tk.StringVar(value="Normal Blob")
-        shape_options = ["Normal Blob", "Circle", "Cylinder", "Torus"]
+        shape_options = ["Normal Blob", "Circle", "Sphere", "Cylinder", "Torus"]
         self.noise_var = tk.StringVar(value= "0.05")
 
         self._row(frm, "Dimension:", self.dim_var, 0)
