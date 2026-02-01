@@ -1,4 +1,4 @@
-# Make sure you installed: pip install numpy matplotlib gudhi
+# Make sure you installed: pip install numpy matplotlib gudhi sv_ttk
 # Joseph Matatyaou
 
 import tkinter as tk
@@ -6,6 +6,7 @@ from tkinter import ttk, messagebox
 import numpy as np
 import gudhi as gd
 import matplotlib.pyplot as plt
+import sv_ttk
 
 # Core Functions
 
@@ -71,14 +72,14 @@ def plot_point_cloud_on_ax(ax, X: np.ndarray, dim: int):
         ax.scatter(X[:, 0], np.zeros_like(X[:, 0]), s=10)
         ax.set_xlabel("x")
         ax.set_yticks([])
-        ax.set_title("Point cloud (1D)")
+        ax.set_title("Point Cloud (1D)")
         return
 
     if dim == 2:
         ax.scatter(X[:, 0], X[:, 1], s=10)
         ax.set_xlabel("x")
         ax.set_ylabel("y")
-        ax.set_title("Point cloud (2D)")
+        ax.set_title("Point Cloud (2D)")
         ax.axis("equal")
         return
 
@@ -87,7 +88,7 @@ def plot_point_cloud_on_ax(ax, X: np.ndarray, dim: int):
         ax.set_xlabel("x")
         ax.set_ylabel("y")
         ax.set_zlabel("z")
-        ax.set_title("Point cloud (3D)")
+        ax.set_title("Point Cloud (3D)")
         return
 
     # dim >= 4: show PCA 2D projection 
@@ -316,7 +317,7 @@ class ECCApp(tk.Tk):
 
         btns = ttk.Frame(self)
         btns.pack(fill="x", **pad)
-        ttk.Button(btns, text="Run (show all 3 plots)", command=self.on_run).pack(side="left")
+        ttk.Button(btns, text="Run", command=self.on_run).pack(side="left")
         ttk.Button(btns, text="Quit", command=self.destroy).pack(side="right")
 
         outfrm = ttk.LabelFrame(self, text="Log")
@@ -414,7 +415,7 @@ class ECCApp(tk.Tk):
             # Panel 3: ECC
             ax3 = fig.add_subplot(1, 3, 3)
             ax3.plot(t, ecc)
-            ax3.set_xlabel("Filtration Threshold")
+            ax3.set_xlabel("VR Ball Radius")
             ax3.set_ylabel("Euler characteristic")
             ax3.set_title("ECC")
 
@@ -436,4 +437,4 @@ class ECCApp(tk.Tk):
 
 if __name__ == "__main__":
     app = ECCApp()
-    app.mainloop()
+    sv_ttk.set_theme
