@@ -14,13 +14,11 @@ def normal_point_cloud(n_points: int, dim: int, seed: int) -> np.ndarray:
     rng = np.random.default_rng(seed)
     return rng.normal(0.0, 1.0, size=(n_points, dim))
 
-
 def build_vr_simplex_tree(X: np.ndarray, max_edge_length: float, max_simplex_dim: int) -> gd.SimplexTree:
     rips = gd.RipsComplex(points=X, max_edge_length=max_edge_length) #contructs VR complex builder
     st = rips.create_simplex_tree(max_dimension=max_simplex_dim) #builds simplex tree with simplices up do max_simplex_dim
     st.initialize_filtration() 
     return st
-
 
 def compute_persistence_counts(st: gd.SimplexTree) -> dict: #takes simplex tree and returns dictionary of intervals in each homology dimension
     st.compute_persistence()
@@ -28,7 +26,6 @@ def compute_persistence_counts(st: gd.SimplexTree) -> dict: #takes simplex tree 
     for d in range(st.dimension() + 1): #loops over dimensions in the simplex tree
         counts[d] = len(st.persistence_intervals_in_dimension(d)) #for each homology dimension in d get the list of intervals
     return counts
-
 
 def compute_ecc(st: gd.SimplexTree, n_steps: int = 250): # computes ECC over the filtration
     simplices = []
@@ -66,7 +63,6 @@ def pca_project(X: np.ndarray, out_dim: int = 2) -> np.ndarray: #projects data i
     W = Vt[:out_dim].T #takes out first out_dim principal directions and transpose into projection matrix
     return Xc @ W #multiply centered data with projection matrix to get lower-dimensional coordinates
 
-
 def plot_point_cloud_on_ax(ax, X: np.ndarray, dim: int):
     if dim == 1:
         ax.scatter(X[:, 0], np.zeros_like(X[:, 0]), s=10)
@@ -98,7 +94,6 @@ def plot_point_cloud_on_ax(ax, X: np.ndarray, dim: int):
     ax.set_ylabel("PC2")
     ax.set_title(f"Point cloud (PCA 2D from dim={dim})")
     ax.axis("equal")
-
 
 def plot_persistence_diagram(ax, st: gd.SimplexTree):
     """
@@ -160,7 +155,13 @@ def random_orthonormal_matrix(d: int, seed: int) -> np.ndarray:
     Q, _ = np.linalg.qr(A) #Q is orthonormal matrix (random rotation matrix)
     return Q
 
-def embed_in_ambient(X: np.ndarray, ambient_dim: int, seed: int, rotate: bool = True) -> np.ndarray:
+def embed_in_ambient(
+    X: np.ndarray,
+    ambient_dim: int,
+    seed: int,
+    rotate: bool = True,
+    rotate_seed: int | None = None,
+) -> np.ndarray:
     """
     Embed low-dim coordinates into R^ambient_dim by padding zeros, then optionally rotate.
     """
@@ -173,12 +174,13 @@ def embed_in_ambient(X: np.ndarray, ambient_dim: int, seed: int, rotate: bool = 
         Y = np.zeros((n, ambient_dim))
         Y[:, :d0] = X
 
-    if rotate: #rotation using random orthonormal matrix so shape isn't aligned with first coords
-        Q = random_orthonormal_matrix(ambient_dim, seed=seed + 12345)
+    if rotate:  # random rotation so shape isn't aligned with coordinate axes
+        seed_used = (seed + 12345) if rotate_seed is None else int(rotate_seed)
+        Q = random_orthonormal_matrix(ambient_dim, seed=seed_used)
         Y = Y @ Q
     return Y
 
-def sample_point_cloud( #shape generator
+def sample_point_cloud(
     shape: str,
     n_points: int,
     ambient_dim: int,
@@ -191,25 +193,34 @@ def sample_point_cloud( #shape generator
     Torus_r: float = 0.7,
     sphere_radius: float = 1.0,
     rotate: bool = True,
+    rotate_seed: int | None = None,
 ) -> np.ndarray:
     """
     Supported shapes:
       - "Normal Blob" (normal point cloud) in R^ambient_dim
       - "Circle"   (S^1) embedded in R^2 then into R^ambient_dim
+      - "Filled Disk" (S^1) embedded in R^2 then into R^ambient_dim
+      - "Figure 8" (wedge of two circles) embedded in R^2 then into R^ambient_dim
       - "Cylinder" (S^1 x [0,1]) embedded in R^3 then into R^ambient_dim
+      - "Closed Cylinder" (side + filled caps) embedded in R^3 then into R^ambient_dim
+      - "Sphere" (S^2) embedded in R^3 then into R^ambient_dim
       - "Torus"    (S^1 x S^1) embedded in R^3 then into R^ambient_dim
+      - "Swiss Roll" (rolled 2D manifold) embedded in R^3 then into R^ambient_dim
     """
     rng = np.random.default_rng(seed)
 
-    shape = shape.lower().strip()
+    #normalize names
+    shape_key = shape.lower().strip()
+    for ch in [" ", "-", "_", "(", ")"]:
+        shape_key = shape_key.replace(ch, "")
 
-    if shape == "normal blob":
+    if shape_key in {"normalblob", "gaussian"}:
         X = rng.normal(0.0, 1.0, size=(n_points, ambient_dim)) #standard gaussian cloud in R^d
         if noise > 0: #adds additional noise
             X = X + rng.normal(0.0, noise, size=X.shape)
         return X
 
-    if shape == "circle":
+    if shape_key == "circle":
         if ambient_dim < 2:
             raise ValueError("Circle needs ambient_dim >= 2.")
         theta = rng.uniform(0, 2 * np.pi, size=n_points) #uniform sampling on S^1
@@ -218,25 +229,55 @@ def sample_point_cloud( #shape generator
         # Ensure radius stays positive
         r = np.maximum(r, 1e-6)
         X0 = np.column_stack([r * np.cos(theta), r * np.sin(theta)])  #polar to cartesian conversion
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate)
+        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
     
-    if shape == "sphere":
-        if ambient_dim < 3:
-            raise ValueError("Sphere needs ambient_dim >= 3.")
+    if shape_key in {"filleddisk", "disk", "filleddisc", "disc"}:
+        #filled 2D disk. For uniform area sample radius as R*sqrt(U)
+        if ambient_dim < 2:
+            raise ValueError("Filled Disk needs ambient_dim >= 2.")
+        
+        theta = rng.uniform(0, 2 * np.pi, size = n_points)
+        u = rng.uniform(0, 1, size=n_points)
+        r = circle_radius * np.sqrt(u)
 
-        # Sample directions uniformly on S^2
-        v = rng.normal(size=(n_points, 3))
-        v /= np.linalg.norm(v, axis=1, keepdims=True)
+        #noise
+        if noise > 0:
+            r = r + rng.normal(0, noise, size=n_points)
+        r = np.maximum(r, 0)
 
-        # Gaussian thickness around the sphere: radius = R + N(0, noise)
-        rad = sphere_radius + (rng.normal(0.0, noise, size=n_points) if noise > 0 else np.zeros(n_points))
-        rad = np.maximum(rad, 1e-6)
+        X0 = np.column_stack([r * np.cos(theta), r * np.sin(theta)])
+        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
 
-        X0 = v * rad[:, None]  # (n_points, 3)
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate)
-    
+    if shape_key in {"figure8", "figureeight"}:
+        # figure 8 (wedge of two circles): two loops that connect at one point.
+        # Two circles of radius R/2 centered at +/- (R/2, 0), so they intersect at the origin.
 
-    if shape == "cylinder":
+        if ambient_dim < 2:
+            raise ValueError("Figure 8 needs ambient_dim >= 2.")
+        
+        n1 = n_points // 2
+        n2 = n_points - n1
+
+        theta1 = rng.uniform(0, 2 * np.pi, size = n1)
+        theta2 = rng.uniform(0, 2 * np.pi, size = n2)
+
+        Rloop = circle_radius / 2
+
+        r1 = Rloop + (rng.normal(0, noise, size = n1) if noise > 0 else np.zeros(n1))
+        r2 = Rloop + (rng.normal(0, noise, size = n2) if noise > 0 else np.zeros(n2))
+        r1 = np.maximum(r1, 1e-6)
+        r2 = np.maximum(r2, 1e-6)
+
+        c1 = np.array([-circle_radius / 2, 0])
+        c2 = np.array([circle_radius / 2, 0])
+
+        X1 = np.column_stack([r1 * np.cos(theta1), r1 * np.sin(theta1)]) + c1
+        X2 = np.column_stack([r2 * np.cos(theta2), r2 * np.sin(theta2)]) + c2
+
+        X0 = np.vstack([X1, X2])
+        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+
+    if shape_key == "cylinder":
         if ambient_dim < 3:
             raise ValueError("Cylinder needs ambient_dim >= 3.")
         theta = rng.uniform(0, 2 * np.pi, size=n_points) #angular coord
@@ -249,9 +290,63 @@ def sample_point_cloud( #shape generator
         z = rng.normal(0.0, cylinder_height / 4.0, size=n_points)
         z = np.clip(z, -cylinder_height / 2.0, cylinder_height / 2.0)
         X0 = np.column_stack([r * np.cos(theta), r * np.sin(theta), z])  # R^3
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate)
+        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
 
-    if shape == "torus":
+    if shape_key in {"closedcylinder", "cylinderwithcaps", "cylinderfilledends", "closed"}:
+        if ambient_dim < 3:
+            raise ValueError("Closed Cylinder needs ambient_dim >= 3.")
+        if cylinder_height <= 0:
+            raise ValueError("Cylinder Height must be > 0.")
+        
+        # Mix points between side and caps
+        n_side = int(round(.6 * n_points))
+        n_cap_each = (n_points - n_side) // 2
+        n_top = n_cap_each
+        n_bot = n_points - n_side - n_top
+
+        # Shell
+        theta_s = rng.uniform(0, 2 * np.pi, size=n_side)
+        r_s = cylinder_radius + (rng.normal(0.0, noise, size=n_side) if noise > 0 else np.zeros(n_side))
+        r_s = np.maximum(r_s, 1e-6)
+        z_s = rng.uniform(-cylinder_height / 2, cylinder_height / 2, size=n_side)
+        Xs = np.column_stack([r_s * np.cos(theta_s), r_s * np.sin(theta_s), z_s])
+
+        # Caps
+        def sample_cap(n, z0):
+            # Filled disk cap in the xy-plane at height z0
+            th = rng.uniform(0, 2 * np.pi, size=n)
+            u = rng.uniform(0.0, 1.0, size=n)
+            rr = cylinder_radius * np.sqrt(u)  # uniform in area
+            if noise > 0:
+                rr = rr + rng.normal(0.0, noise, size=n)
+            rr = np.maximum(rr, 0.0)
+            x = rr * np.cos(th)
+            y = rr * np.sin(th)
+            z = np.full(n, z0)
+            return np.column_stack([x, y, z])
+        
+        Xt = sample_cap(n_top, cylinder_height / 2)
+        Xb = sample_cap(n_bot, -cylinder_height / 2)
+
+        X0 = np.vstack([Xs, Xt, Xb])
+        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+
+    if shape_key == "sphere":
+        if ambient_dim < 3:
+            raise ValueError("Sphere needs ambient_dim >= 3.")
+
+        # Sample directions uniformly on S^2
+        v = rng.normal(size=(n_points, 3))
+        v /= np.linalg.norm(v, axis=1, keepdims=True)
+
+        # Gaussian thickness around the sphere: radius = R + N(0, noise)
+        rad = sphere_radius + (rng.normal(0.0, noise, size=n_points) if noise > 0 else np.zeros(n_points))
+        rad = np.maximum(rad, 1e-6)
+
+        X0 = v * rad[:, None]  # (n_points, 3)
+        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+
+    if shape_key == "torus":
         if ambient_dim < 3:
             raise ValueError("Torus needs ambient_dim >= 3.")
         theta = rng.uniform(0, 2 * np.pi, size=n_points)
@@ -263,10 +358,27 @@ def sample_point_cloud( #shape generator
         y = (Torus_R + rr * np.cos(phi)) * np.sin(theta)
         z = rr * np.sin(phi)
         X0 = np.column_stack([x, y, z])  # R^3
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate)
+        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
 
-    raise ValueError(f"Unknown shape: {shape}. Choose normal blob, circle, sphere, cylinder, torus.")
+    if shape_key == "swissroll":
+        if ambient_dim < 3:
+            raise ValueError("Swiss Roll needs ambient_dim >= 3")
+        t = rng.uniform(1.5 * np.pi, 4.5 * np.pi, size = n_points)
+        h = rng.uniform(-1, 1, size=n_points)
 
+        # noise
+        if noise > 0:
+            t = t + rng.normal(0, noise, size = n_points)
+            h = h + rng.normal(0, noise, size = n_points)
+        
+        x = t * np.cos(t)
+        y = h
+        z = t * np.sin(t)
+        X0 = np.column_stack([x, y, z])
+        
+        return embed_in_ambient(X0, ambient_dim, seed = seed, rotate = rotate, rotate_seed=rotate_seed)
+    
+    raise ValueError(f"Unknown shape: {shape}. Choose normal blob, circle, disk, figure 8, cylinder, closed cylinder sphere, torus, or swiss roll.")
 
 # GUI 
 
@@ -274,7 +386,7 @@ class ECCApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("ECC with Vietoris–Rips App")
-        self.geometry("600x520")
+        self.geometry("600x600")
         self._build_ui()
 
     def _build_ui(self):
@@ -293,8 +405,20 @@ class ECCApp(tk.Tk):
         self.seed_var = tk.StringVar(value="1")
         self.steps_var = tk.StringVar(value="250")
         self.shape_var = tk.StringVar(value="Normal Blob")
-        shape_options = ["Normal Blob", "Circle", "Sphere", "Cylinder", "Torus"]
+        shape_options = [
+            "Normal Blob",
+            "Circle",
+            "Filled Disk",
+            "Figure 8",
+            "Sphere",
+            "Cylinder",
+            "Closed Cylinder",
+            "Torus",
+            "Swiss Roll",
+        ]
         self.noise_var = tk.StringVar(value= "0.05")
+        self.rotate_var = tk.BooleanVar(value=True)
+        self.rotate_seed_var = tk.StringVar(value="")
 
         self._row(frm, "Dimension:", self.dim_var, 0)
         self._row(frm, "Number of Points:", self.npoints_var, 1)
@@ -304,7 +428,14 @@ class ECCApp(tk.Tk):
         self._row(frm, "ECC Steps (Resolution):", self.steps_var, 5)
         self._row(frm, "Noise Standard Deviation:", self.noise_var, 6)
 
-        ttk.Label(frm, text="Shape:").grid(row=7, column=0, sticky="w", padx=6, pady=4)
+        # Rotation controls
+        ttk.Label(frm, text="Rotate Shape:").grid(row=7, column=0, sticky="w", padx=6, pady=4)
+        ttk.Checkbutton(frm, variable=self.rotate_var).grid(row=7, column=1, sticky="w", padx=6, pady=4)
+
+        ttk.Label(frm, text="Rotation Seed:").grid(row=8, column=0, sticky="w", padx=6, pady=4)
+        ttk.Entry(frm, textvariable=self.rotate_seed_var, width=20).grid(row=8, column=1, sticky="w", padx=6, pady=4)
+
+        ttk.Label(frm, text="Shape:").grid(row=9, column=0, sticky="w", padx=6, pady=4)
         shape_box = ttk.Combobox(
             frm,
             textvariable=self.shape_var,
@@ -312,7 +443,7 @@ class ECCApp(tk.Tk):
             state="readonly",
             width=18
         )
-        shape_box.grid(row=7, column=1, sticky="w", padx=6, pady=4)
+        shape_box.grid(row=9, column=1, sticky="w", padx=6, pady=4)
 
 
         btns = ttk.Frame(self)
@@ -348,6 +479,9 @@ class ECCApp(tk.Tk):
             steps = int(self.steps_var.get())
             shape = self.shape_var.get()
             noise = float(self.noise_var.get())
+            rotate = bool(self.rotate_var.get())
+            rot_seed_txt = self.rotate_seed_var.get().strip()
+            rotate_seed = int(rot_seed_txt) if rot_seed_txt != "" else None
 
             shape_label = "Normal Blob" if shape == "Normal Blob" else shape.capitalize()
 
@@ -368,7 +502,10 @@ class ECCApp(tk.Tk):
             return
 
         self._log("----- Running -----")
-        self._log(f"shape={shape_label}, dim={dim}, n_points={n_points}, max_radius_length={max_radius}, max_simplex_dim={max_simp}, seed={seed}")
+        self._log(
+            f"shape={shape_label}, dim={dim}, n_points={n_points}, max_radius_length={max_radius}, "
+            f"max_simplex_dim={max_simp}, seed={seed}, rotate={rotate}, rotate_seed={rotate_seed}"
+        )
 
         try:
             # 1) Data
@@ -383,7 +520,8 @@ class ECCApp(tk.Tk):
                 cylinder_height=2,
                 Torus_R=2,
                 Torus_r=0.7,
-                rotate=True,
+                rotate=rotate,
+                rotate_seed=rotate_seed,
             )
 
             # 2) VR filtration
