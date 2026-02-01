@@ -437,4 +437,5 @@ class ECCApp(tk.Tk):
 
 if __name__ == "__main__":
     app = ECCApp()
-    sv_ttk.set_theme
+    sv_ttk.set_theme("dark")
+    app.mainloop()
