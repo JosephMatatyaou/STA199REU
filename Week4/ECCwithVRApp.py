@@ -325,7 +325,7 @@ class ECCApp(tk.Tk):
         self.output = tk.Text(outfrm, height=8, wrap="word")
         self.output.pack(fill="both", expand=True, padx=8, pady=8)
 
-        self._log("Tip: If it’s slow/error, reduce max_simplex_dim (try 2), then max_radius_length, then n_points.\n")
+        self._log("If it’s slow/error, reduce max simplex dimension, then max radius length, then sampling points.\n")
 
     def _row(self, parent, label, var, r):
         ttk.Label(parent, text=label).grid(row=r, column=0, sticky="w", padx=6, pady=4)
@@ -414,11 +414,11 @@ class ECCApp(tk.Tk):
             # Panel 3: ECC
             ax3 = fig.add_subplot(1, 3, 3)
             ax3.plot(t, ecc)
-            ax3.set_xlabel("filtration threshold")
-            ax3.set_ylabel("Euler characteristic χ(t)")
+            ax3.set_xlabel("Filtration Threshold")
+            ax3.set_ylabel("Euler characteristic")
             ax3.set_title("ECC")
 
-            fig.suptitle(f"VR results (shape={shape_label}, dim={dim}, n={n_points}, max_radius={max_radius}, max_simp={max_simp})")
+            fig.suptitle(f"VR results (Shape={shape_label}, Dim={dim}, n={n_points}, Max Radius ={max_radius}, Max Simplex Dim={max_simp})")
             fig.tight_layout()
             plt.show()
 
