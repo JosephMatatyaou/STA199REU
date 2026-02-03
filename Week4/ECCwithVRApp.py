@@ -162,9 +162,8 @@ def embed_in_ambient(
     rotate: bool = True,
     rotate_seed: int | None = None,
 ) -> np.ndarray:
-    """
-    Embed low-dim coordinates into R^ambient_dim by padding zeros, then optionally rotate.
-    """
+    
+    #Embed low-dim coordinates into R^ambient_dim by padding zeros, then optionally rotate.
     n, d0 = X.shape #n is number of points, d0 is intrinsic dimension of shape
     if ambient_dim < d0:
         raise ValueError(f"Ambient dimension {ambient_dim} must be >= intrinsic embedding dim {d0}.")
@@ -346,6 +345,8 @@ def sample_point_cloud(
         X0 = v * rad[:, None]  # (n_points, 3)
         return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
 
+#####recode torus to uniformly distribute points (look at parametric family non uniform torus?)
+
     if shape_key == "torus":
         if ambient_dim < 3:
             raise ValueError("Torus needs ambient_dim >= 3.")
@@ -519,7 +520,7 @@ class ECCApp(tk.Tk):
                 cylinder_radius=1,
                 cylinder_height=2,
                 Torus_R=2,
-                Torus_r=0.7,
+                Torus_r=1.9,
                 rotate=rotate,
                 rotate_seed=rotate_seed,
             )
