@@ -14,18 +14,18 @@ def normal_point_cloud(n_points: int, dim: int, seed: int) -> np.ndarray:
     rng = np.random.default_rng(seed)
     return rng.normal(0.0, 1.0, size=(n_points, dim))
 
-def build_vr_simplex_tree(X: np.ndarray, max_edge_length: float, max_simplex_dim: int) -> gd.SimplexTree:
-    rips = gd.RipsComplex(points=X, max_edge_length=max_edge_length) #contructs VR complex builder
-    st = rips.create_simplex_tree(max_dimension=max_simplex_dim) #builds simplex tree with simplices up do max_simplex_dim
-    st.initialize_filtration() 
-    return st
-
 def compute_persistence_counts(st: gd.SimplexTree) -> dict: #takes simplex tree and returns dictionary of intervals in each homology dimension
     st.compute_persistence()
     counts = {}
     for d in range(st.dimension() + 1): #loops over dimensions in the simplex tree
         counts[d] = len(st.persistence_intervals_in_dimension(d)) #for each homology dimension in d get the list of intervals
     return counts
+
+def build_vr_simplex_tree(X: np.ndarray, max_edge_length: float, max_simplex_dim: int) -> gd.SimplexTree:
+    rips = gd.RipsComplex(points=X, max_edge_length=max_edge_length) #contructs VR complex builder
+    st = rips.create_simplex_tree(max_dimension=max_simplex_dim) #builds simplex tree with simplices up do max_simplex_dim
+    st.initialize_filtration() 
+    return st
 
 def compute_ecc(st: gd.SimplexTree, n_steps: int = 250): # computes ECC over the filtration
     simplices = []
@@ -54,6 +54,49 @@ def compute_ecc(st: gd.SimplexTree, n_steps: int = 250): # computes ECC over the
         ecc.append(chi)
 
     return ts, np.array(ecc)
+
+# Sampling helpers for even point clouds
+
+def apply_noise(Y: np.ndarray, noise: float, rng: np.random.Generator) -> np.ndarray:
+    #add noise in ambient dim coords
+    if noise <=0:
+        return Y
+    return Y + rng.normal(0, noise, size=Y.shape)
+
+def unif_torus_points(n: int, R: float, r: float, seed: int) -> np.ndarray:
+    """
+    Torus parameterization:
+    x = (R + r cos(theta)) cos(phi)
+    y = (R + r cos(theta)) sin(phi)
+    z = r sin(theta)
+
+    Uniform in (theta, phi) is no uniform in area because surface area is
+    dA = r(R + rcos(theta)) dtheta dphi. So we sample phi ~ Unif[0,2pi) and sample
+    theta with density proportional to (R + rcos(theta)) using acceptance-rejectin.
+    """
+    if n <= 0:
+        return np.empty((0,3))
+    if R <=0 or r <= 0:
+        raise ValueError("R and r must be > 0")
+    #if r >= R:
+     #   pass
+
+    rng = np.random.default_rng(seed)
+    out = np.empty((n,3), dtype = float)
+
+    phi = rng.uniform(0,2 * np.pi, size = n)
+
+    j = 0
+    M = R + r #envelope for acceptance-rejection since R + rcos(theta) <= R + r
+    while j < n:
+        theta = rng.uniform(0,2 * np.pi)
+        h = R + r * np.cos(theta)
+        if rng.uniform(0,M) <= h:
+            out[j, 0] = h * np.cos(phi[j])
+            out[j, 1] = h * np.sin(phi[j])
+            out[j, 2] = r * np.sin(theta)
+            j += 1
+    return out
 
 # Plot helpers (one window, 3 panels)
 
@@ -208,176 +251,154 @@ def sample_point_cloud(
     """
     rng = np.random.default_rng(seed)
 
+
     #normalize names
     shape_key = shape.lower().strip()
     for ch in [" ", "-", "_", "(", ")"]:
         shape_key = shape_key.replace(ch, "")
 
     if shape_key in {"normalblob", "gaussian"}:
-        X = rng.normal(0.0, 1.0, size=(n_points, ambient_dim)) #standard gaussian cloud in R^d
-        if noise > 0: #adds additional noise
-            X = X + rng.normal(0.0, noise, size=X.shape)
+        # Gaussian "blob" in ambient space
+        X = rng.normal(0.0, 1.0, size=(n_points, ambient_dim))
+        X = apply_noise(X, noise, rng)
         return X
 
     if shape_key == "circle":
         if ambient_dim < 2:
             raise ValueError("Circle needs ambient_dim >= 2.")
-        theta = rng.uniform(0, 2 * np.pi, size=n_points) #uniform sampling on S^1
-        # Gaussian thickness around the circle: radius = R + N(0, noise)
-        r = circle_radius + (rng.normal(0.0, noise, size=n_points) if noise > 0 else 0.0)
-        # Ensure radius stays positive
-        r = np.maximum(r, 1e-6)
-        X0 = np.column_stack([r * np.cos(theta), r * np.sin(theta)])  #polar to cartesian conversion
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
-    
+        # Uniform on S^1: theta ~ Unif[0, 2pi)
+        theta = rng.uniform(0.0, 2.0 * np.pi, size=n_points)
+        X0 = np.column_stack([circle_radius * np.cos(theta), circle_radius * np.sin(theta)])
+        Y = embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+        Y = apply_noise(Y, noise, rng)
+        return Y
+
     if shape_key in {"filleddisk", "disk", "filleddisc", "disc"}:
-        #filled 2D disk. For uniform area sample radius as R*sqrt(U)
         if ambient_dim < 2:
             raise ValueError("Filled Disk needs ambient_dim >= 2.")
-        
-        theta = rng.uniform(0, 2 * np.pi, size = n_points)
-        u = rng.uniform(0, 1, size=n_points)
-        r = circle_radius * np.sqrt(u)
-
-        #noise
-        if noise > 0:
-            r = r + rng.normal(0, noise, size=n_points)
-        r = np.maximum(r, 0)
-
-        X0 = np.column_stack([r * np.cos(theta), r * np.sin(theta)])
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+        # Uniform in area on disk: r = R*sqrt(U), theta ~ Unif[0,2pi)
+        theta = rng.uniform(0.0, 2.0 * np.pi, size=n_points)
+        u = rng.uniform(0.0, 1.0, size=n_points)
+        rad = circle_radius * np.sqrt(u)
+        X0 = np.column_stack([rad * np.cos(theta), rad * np.sin(theta)])
+        Y = embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+        Y = apply_noise(Y, noise, rng)
+        return Y
 
     if shape_key in {"figure8", "figureeight"}:
-        # figure 8 (wedge of two circles): two loops that connect at one point.
-        # Two circles of radius R/2 centered at +/- (R/2, 0), so they intersect at the origin.
-
+        # Two circles meeting at the origin; sample uniformly on each loop
         if ambient_dim < 2:
             raise ValueError("Figure 8 needs ambient_dim >= 2.")
-        
+
         n1 = n_points // 2
         n2 = n_points - n1
+        # Interpret circle_radius as the radius of each loop
+        Rloop = circle_radius
+        c1 = np.array([-circle_radius, 0.0])
+        c2 = np.array([ circle_radius, 0.0])
 
-        theta1 = rng.uniform(0, 2 * np.pi, size = n1)
-        theta2 = rng.uniform(0, 2 * np.pi, size = n2)
-
-        Rloop = circle_radius / 2
-
-        r1 = Rloop + (rng.normal(0, noise, size = n1) if noise > 0 else np.zeros(n1))
-        r2 = Rloop + (rng.normal(0, noise, size = n2) if noise > 0 else np.zeros(n2))
-        r1 = np.maximum(r1, 1e-6)
-        r2 = np.maximum(r2, 1e-6)
-
-        c1 = np.array([-circle_radius / 2, 0])
-        c2 = np.array([circle_radius / 2, 0])
-
-        X1 = np.column_stack([r1 * np.cos(theta1), r1 * np.sin(theta1)]) + c1
-        X2 = np.column_stack([r2 * np.cos(theta2), r2 * np.sin(theta2)]) + c2
-
+        th1 = rng.uniform(0.0, 2.0 * np.pi, size=n1)
+        th2 = rng.uniform(0.0, 2.0 * np.pi, size=n2)
+        X1 = np.column_stack([Rloop * np.cos(th1), Rloop * np.sin(th1)]) + c1
+        X2 = np.column_stack([Rloop * np.cos(th2), Rloop * np.sin(th2)]) + c2
         X0 = np.vstack([X1, X2])
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
 
+        Y = embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+        Y = apply_noise(Y, noise, rng)
+        return Y
+    
     if shape_key == "cylinder":
         if ambient_dim < 3:
             raise ValueError("Cylinder needs ambient_dim >= 3.")
-        theta = rng.uniform(0, 2 * np.pi, size=n_points) #angular coord
-        # Gaussian thickness in radius
-        r = cylinder_radius + (rng.normal(0.0, noise, size=n_points) if noise > 0 else 0.0)
-        r = np.maximum(r, 1e-6)
-        # Gaussian distribution along the axis, truncated to the cylinder height
         if cylinder_height <= 0:
             raise ValueError("cylinder_height must be > 0.")
-        z = rng.normal(0.0, cylinder_height / 4.0, size=n_points)
-        z = np.clip(z, -cylinder_height / 2.0, cylinder_height / 2.0)
-        X0 = np.column_stack([r * np.cos(theta), r * np.sin(theta), z])  # R^3
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+
+        theta = rng.uniform(0.0, 2.0 * np.pi, size=n_points)
+        z = rng.uniform(0.0, cylinder_height, size=n_points)
+        X0 = np.column_stack([
+            cylinder_radius * np.cos(theta),
+            cylinder_radius * np.sin(theta),
+            z,
+        ])
+        Y = embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+        Y = apply_noise(Y, noise, rng)
+        return Y
 
     if shape_key in {"closedcylinder", "cylinderwithcaps", "cylinderfilledends", "closed"}:
         if ambient_dim < 3:
             raise ValueError("Closed Cylinder needs ambient_dim >= 3.")
         if cylinder_height <= 0:
             raise ValueError("Cylinder Height must be > 0.")
-        
+
         # Mix points between side and caps
-        n_side = int(round(.6 * n_points))
+        n_side = int(round(0.6 * n_points))
         n_cap_each = (n_points - n_side) // 2
         n_top = n_cap_each
         n_bot = n_points - n_side - n_top
 
-        # Shell
-        theta_s = rng.uniform(0, 2 * np.pi, size=n_side)
-        r_s = cylinder_radius + (rng.normal(0.0, noise, size=n_side) if noise > 0 else np.zeros(n_side))
-        r_s = np.maximum(r_s, 1e-6)
-        z_s = rng.uniform(-cylinder_height / 2, cylinder_height / 2, size=n_side)
-        Xs = np.column_stack([r_s * np.cos(theta_s), r_s * np.sin(theta_s), z_s])
+        # Side: uniform on surface
+        theta_s = rng.uniform(0.0, 2.0 * np.pi, size=n_side)
+        z_s = rng.uniform(0.0, cylinder_height, size=n_side)
+        Xs = np.column_stack([
+            cylinder_radius * np.cos(theta_s),
+            cylinder_radius * np.sin(theta_s),
+            z_s,
+        ])
 
-        # Caps
-        def sample_cap(n, z0):
-            # Filled disk cap in the xy-plane at height z0
-            th = rng.uniform(0, 2 * np.pi, size=n)
-            u = rng.uniform(0.0, 1.0, size=n)
-            rr = cylinder_radius * np.sqrt(u)  # uniform in area
-            if noise > 0:
-                rr = rr + rng.normal(0.0, noise, size=n)
-            rr = np.maximum(rr, 0.0)
-            x = rr * np.cos(th)
-            y = rr * np.sin(th)
-            z = np.full(n, z0)
+        # Caps: uniform in area on disks at z = 0 and z = cylinder_height
+        def sample_cap(nc: int, z0: float) -> np.ndarray:
+            th = rng.uniform(0.0, 2.0 * np.pi, size=nc)
+            u = rng.uniform(0.0, 1.0, size=nc)
+            rad = cylinder_radius * np.sqrt(u)
+            x = rad * np.cos(th)
+            y = rad * np.sin(th)
+            z = np.full(nc, z0)
             return np.column_stack([x, y, z])
-        
-        Xt = sample_cap(n_top, cylinder_height / 2)
-        Xb = sample_cap(n_bot, -cylinder_height / 2)
+
+        # Caps at z = 0 and z = cylinder_height
+        Xb = sample_cap(n_bot, 0.0)
+        Xt = sample_cap(n_top, cylinder_height)
 
         X0 = np.vstack([Xs, Xt, Xb])
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
-
+        Y = embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+        Y = apply_noise(Y, noise, rng)
+        return Y
+    
     if shape_key == "sphere":
         if ambient_dim < 3:
             raise ValueError("Sphere needs ambient_dim >= 3.")
 
-        # Sample directions uniformly on S^2
         v = rng.normal(size=(n_points, 3))
         v /= np.linalg.norm(v, axis=1, keepdims=True)
-
-        # Gaussian thickness around the sphere: radius = R + N(0, noise)
-        rad = sphere_radius + (rng.normal(0.0, noise, size=n_points) if noise > 0 else np.zeros(n_points))
-        rad = np.maximum(rad, 1e-6)
-
-        X0 = v * rad[:, None]  # (n_points, 3)
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
-
-#####recode torus to uniformly distribute points (look at parametric family non uniform torus?)
-
+        X0 = sphere_radius * v
+        Y = embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+        Y = apply_noise(Y, noise, rng)
+        return Y
+    
     if shape_key == "torus":
         if ambient_dim < 3:
             raise ValueError("Torus needs ambient_dim >= 3.")
-        theta = rng.uniform(0, 2 * np.pi, size=n_points)
-        phi = rng.uniform(0, 2 * np.pi, size=n_points)
-        # Gaussian thickness around the torus tube: minor radius = r + N(0, noise)
-        rr = Torus_r + (rng.normal(0.0, noise, size=n_points) if noise > 0 else 0.0)
-        rr = np.maximum(rr, 1e-6)
-        x = (Torus_R + rr * np.cos(phi)) * np.cos(theta)
-        y = (Torus_R + rr * np.cos(phi)) * np.sin(theta)
-        z = rr * np.sin(phi)
-        X0 = np.column_stack([x, y, z])  # R^3
-        return embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+
+        X0 = unif_torus_points(n_points, Torus_R, Torus_r, seed=seed)
+        Y = embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+        Y = apply_noise(Y, noise, rng)
+        return Y
 
     if shape_key == "swissroll":
         if ambient_dim < 3:
             raise ValueError("Swiss Roll needs ambient_dim >= 3")
-        t = rng.uniform(1.5 * np.pi, 4.5 * np.pi, size = n_points)
-        h = rng.uniform(-1, 1, size=n_points)
 
-        # noise
-        if noise > 0:
-            t = t + rng.normal(0, noise, size = n_points)
-            h = h + rng.normal(0, noise, size = n_points)
-        
+        t = rng.uniform(1.5 * np.pi, 4.5 * np.pi, size=n_points)
+        h = rng.uniform(-1.0, 1.0, size=n_points)
+
         x = t * np.cos(t)
         y = h
         z = t * np.sin(t)
         X0 = np.column_stack([x, y, z])
-        
-        return embed_in_ambient(X0, ambient_dim, seed = seed, rotate = rotate, rotate_seed=rotate_seed)
+
+        Y = embed_in_ambient(X0, ambient_dim, seed=seed, rotate=rotate, rotate_seed=rotate_seed)
+        Y = apply_noise(Y, noise, rng)
+        return Y
     
     raise ValueError(f"Unknown shape: {shape}. Choose normal blob, circle, disk, figure 8, cylinder, closed cylinder sphere, torus, or swiss roll.")
 
@@ -387,7 +408,7 @@ class ECCApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("ECC with Vietoris–Rips App")
-        self.geometry("600x600")
+        self.geometry("600x680")
         self._build_ui()
 
     def _build_ui(self):
@@ -417,9 +438,16 @@ class ECCApp(tk.Tk):
             "Torus",
             "Swiss Roll",
         ]
-        self.noise_var = tk.StringVar(value= "0.05")
+        self.noise_var = tk.StringVar(value= "0")
         self.rotate_var = tk.BooleanVar(value=True)
         self.rotate_seed_var = tk.StringVar(value="")
+        # Shape-specific parameters (shown conditionally)
+        self.circle_radius_var = tk.StringVar(value="1.0")
+        self.cylinder_radius_var = tk.StringVar(value="1.0")
+        self.cylinder_height_var = tk.StringVar(value="2.0")
+        self.torus_R_var = tk.StringVar(value="2.0")
+        self.torus_r_var = tk.StringVar(value="0.7")
+        self.sphere_radius_var = tk.StringVar(value="1.0")
 
         self._row(frm, "Dimension:", self.dim_var, 0)
         self._row(frm, "Number of Points:", self.npoints_var, 1)
@@ -445,6 +473,61 @@ class ECCApp(tk.Tk):
             width=18
         )
         shape_box.grid(row=9, column=1, sticky="w", padx=6, pady=4)
+
+        # ---- Shape-specific parameter inputs (hidden unless relevant) ----
+        self.shape_params_frame = ttk.LabelFrame(frm, text="Shape Parameters")
+        self.shape_params_frame.grid(row=10, column=0, columnspan=2, sticky="ew", padx=6, pady=8)
+        self.shape_params_frame.columnconfigure(1, weight=1)
+
+        def _param_row(r: int, label: str, var: tk.StringVar):
+            lab = ttk.Label(self.shape_params_frame, text=label)
+            ent = ttk.Entry(self.shape_params_frame, textvariable=var, width=20)
+            lab.grid(row=r, column=0, sticky="w", padx=6, pady=4)
+            ent.grid(row=r, column=1, sticky="w", padx=6, pady=4)
+            return lab, ent
+
+        self._param_widgets = {}
+
+        # Circle
+        self._param_widgets["circle_radius"] = _param_row(0, "Circle Radius:", self.circle_radius_var)
+        # Cylinder / Closed Cylinder
+        self._param_widgets["cylinder_radius"] = _param_row(1, "Cylinder Radius:", self.cylinder_radius_var)
+        self._param_widgets["cylinder_height"] = _param_row(2, "Cylinder Height:", self.cylinder_height_var)
+        # Sphere
+        self._param_widgets["sphere_radius"] = _param_row(3, "Sphere Radius:", self.sphere_radius_var)
+        # Torus
+        self._param_widgets["torus_R"] = _param_row(4, "Torus R (distance from center of donut to center of tube):", self.torus_R_var)
+        self._param_widgets["torus_r"] = _param_row(5, "Torus r (radius of tube):", self.torus_r_var)
+
+        def _hide_all_params():
+            for (lab, ent) in self._param_widgets.values():
+                lab.grid_remove()
+                ent.grid_remove()
+
+        def _show_params(keys):
+            _hide_all_params()
+            for k in keys:
+                lab, ent = self._param_widgets[k]
+                lab.grid()
+                ent.grid()
+
+        def _update_shape_params(*_):
+            # Normalize the displayed shape label
+            s = self.shape_var.get().strip().lower()
+            if s in {"circle", "filled disk", "figure 8"}:
+                _show_params(["circle_radius"])
+            elif s in {"cylinder", "closed cylinder"}:
+                _show_params(["cylinder_radius", "cylinder_height"])
+            elif s == "sphere":
+                _show_params(["sphere_radius"])
+            elif s == "torus":
+                _show_params(["torus_R", "torus_r"])
+            else:
+                _hide_all_params()
+
+        # Bind changes and set initial visibility
+        shape_box.bind("<<ComboboxSelected>>", _update_shape_params)
+        _update_shape_params()
 
 
         btns = ttk.Frame(self)
@@ -484,8 +567,16 @@ class ECCApp(tk.Tk):
             rot_seed_txt = self.rotate_seed_var.get().strip()
             rotate_seed = int(rot_seed_txt) if rot_seed_txt != "" else None
 
-            shape_label = "Normal Blob" if shape == "Normal Blob" else shape.capitalize()
+            # Shape-specific parameters (defaults exist even if hidden)
+            circle_radius = float(self.circle_radius_var.get())
+            cylinder_radius = float(self.cylinder_radius_var.get())
+            cylinder_height = float(self.cylinder_height_var.get())
+            Torus_R = float(self.torus_R_var.get())
+            Torus_r = float(self.torus_r_var.get())
+            sphere_radius = float(self.sphere_radius_var.get())
 
+            # Validate only when used
+            s = shape.strip().lower()
             if dim < 1:
                 raise ValueError("Dimension must be >= 1.")
             if n_points < 2:
@@ -498,6 +589,22 @@ class ECCApp(tk.Tk):
                 raise ValueError("ECC steps must be >= 10.")
             if noise < 0:
                 raise ValueError("Noise must be >= 0.")
+            if s == "circle" and circle_radius <= 0:
+                raise ValueError("Circle radius must be > 0.")
+            if s in {"cylinder", "closed cylinder"}:
+                if cylinder_radius <= 0:
+                    raise ValueError("Cylinder radius must be > 0.")
+                if cylinder_height <= 0:
+                    raise ValueError("Cylinder height must be > 0.")
+            if s == "sphere" and sphere_radius <= 0:
+                raise ValueError("Sphere radius must be > 0.")
+            if s == "torus":
+                if Torus_R <= 0:
+                    raise ValueError("Torus R must be > 0.")
+                if Torus_r <= 0:
+                    raise ValueError("Torus r must be > 0.")
+
+            shape_label = "Normal Blob" if shape == "Normal Blob" else shape.capitalize()
         except Exception as e:
             messagebox.showerror("Invalid input", f"Please check your inputs.\n\nDetails: {e}")
             return
@@ -505,7 +612,9 @@ class ECCApp(tk.Tk):
         self._log("----- Running -----")
         self._log(
             f"shape={shape_label}, dim={dim}, n_points={n_points}, max_radius_length={max_radius}, "
-            f"max_simplex_dim={max_simp}, seed={seed}, rotate={rotate}, rotate_seed={rotate_seed}"
+            f"max_simplex_dim={max_simp}, seed={seed}, noise={noise}, rotate={rotate}, rotate_seed={rotate_seed}, "
+            f"circle_radius={circle_radius}, cylinder_radius={cylinder_radius}, cylinder_height={cylinder_height}, "
+            f"sphere_radius={sphere_radius}, Torus_R={Torus_R}, Torus_r={Torus_r}"
         )
 
         try:
@@ -516,11 +625,12 @@ class ECCApp(tk.Tk):
                 ambient_dim=dim,
                 seed=seed,
                 noise=noise,
-                circle_radius=1,
-                cylinder_radius=1,
-                cylinder_height=2,
-                Torus_R=2,
-                Torus_r=1.9,
+                circle_radius=circle_radius,
+                cylinder_radius=cylinder_radius,
+                cylinder_height=cylinder_height,
+                Torus_R=Torus_R,
+                Torus_r=Torus_r,
+                sphere_radius=sphere_radius,
                 rotate=rotate,
                 rotate_seed=rotate_seed,
             )
@@ -572,7 +682,6 @@ class ECCApp(tk.Tk):
                 f"Details: {e}"
             )
             self._log(f"ERROR: {e}")
-
 
 if __name__ == "__main__":
     app = ECCApp()
