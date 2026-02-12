@@ -1,0 +1,23 @@
+If two points are not neighbors, what is going on?
+how to avoid storing all the simplices at once but still building from 0-simplices?
+really understand what's going on...
+try running in parallel? (what are the two gpus doing?? (if they are working at the same time))
+maybe we can only store neighbors once? since you already know
+all neigbor sets are stored?
+neighbor set of every xi should give all the information without any more calculation
+get more clear on how the points are ordered so we don't double count
+take intersection of two neighbor sets to add triangle and so on
+once at list of edges how do i count all the triangles. which edge do i start and how do i count edge neighbors with edges who are not the same triangle twice? (or three times)
+why can i use several gpus simultaneously?
+inclusion-exclusion on the neighbor sets?
+
+goals next week:
+
+deeper line by line understanding of what exactly dlotko algorithms are doing
+sample from [0,1] and fix 3 values of epsilon (n=50), find EC(eps1) EC(eps2) EC(eps3) repeat the sampling N times. output is summary of ECs for epsilons (mean should be around 1). we now have N EC(eps1), N EC(eps2) N EC(eps3). Then sample from Beta(alpha,Beta)
+
+long term: 
+
+goal is to run a simulation of collections of randomly sampled point clouds of one shape and have a collection of ECCs (simulate the distribution of ECCs) (ECCs are not full curves maybe 3 points)
+    so at the end have distribution at fixed epsilon of the EC
+    beta distribution??
