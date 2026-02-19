@@ -1,21 +1,14 @@
-# --------------------
+
 # Jupyter notebooks
-# --------------------
 .ipynb_checkpoints/
 
-# --------------------
 # Python artifacts
-# --------------------
 __pycache__/
 *.pyc
 
-# --------------------
 # IDE / editor files
-# --------------------
 .idea/
 .vscode/
 
-# --------------------
 # Conda / Anaconda
-# --------------------
 anaconda_projects/
