@@ -50,11 +50,9 @@ def intersect_two_pointer(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 # New function: order_vertices_by_eps_neighbors
 def order_vertices_by_eps_neighbors(X: np.ndarray, epsilon: float) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Returns:
-      perm: length-n array of OLD indices in NEW order (increasing eps-neighbor count)
-      inv_perm: length-n array mapping OLD index -> NEW index
-    """
+    #perm: length-n array of OLD indices in NEW order (increasing eps-neighbor count)
+    #inv_perm: length-n array mapping OLD index -> NEW index
+    
     X = np.asarray(X, dtype=float)
     D = pairwise_dist(X)
 
@@ -74,11 +72,11 @@ def local_contributions_vr( #enumerating all simplices in the epsilon graph up t
         epsilon: float,
         max_dim: int | None = None,
         ) -> list[tuple[float, int]]:
-    """
-    Using clean depth-first search complete subgraph enumeration in the epsilon graph with ordered neighbor sets.
-    Emits (filtration_value, (-1)^dim) for each simplex found to save memory.
-    outputs C which is a list of events at filtration value f add 1 or subtract 1
-    """
+    
+    #Using clean depth-first search complete subgraph enumeration in the epsilon graph with ordered neighbor sets.
+    #Emits (filtration_value, (-1)^dim) for each simplex found to save memory.
+    #outputs C which is a list of events at filtration value f add 1 or subtract 1
+    
     X = np.asarray(X, dtype = float)
     n = X.shape[0]
     D = pairwise_dist(X)
@@ -220,10 +218,9 @@ def plot_ECC_from_C(
 
 #computes EC directly without C
 def chi( X: np.ndarray, eps: float, max_dim: int | None = None,) -> int:
-    """
-    Compute chi(eps) directly (no event list C).
-    Enumerates simplices in the eps-neighbor graph and accumulates (-1)^dim.
-    """
+    #Compute chi(eps) directly (no event list C).
+    #Enumerates simplices in the eps-neighbor graph and accumulates (-1)^dim.
+    
     X = np.asarray(X, dtype=float)
     n = X.shape[0] #number of points 
 
@@ -273,28 +270,6 @@ def run_ec_simulation(
 ):
     """
     Run multiple trials and compute EC at each epsilon value.
-
-    - If X is provided: each trial draws a fresh sample of n points from rows of X (with replacement).
-      (So the sampled point cloud changes each trial, but the number of points stays the same.)
-    - If X is None: each trial samples n points Uniform[0,1] in 1D.
-
-    Parameters
-    ----------
-    n : int
-        number of sampled points per trial when X is None
-    epsilons : list[float]
-        epsilon (r) values
-    trials : int
-        number of simulation runs
-    max_dim : int | None
-        maximum simplex dimension (None = no cap)
-    seed : int | None
-        RNG seed
-    X : np.ndarray | None
-        optional fixed point cloud to resample for every trial
-
-    Returns
-    -------
     results : dict mapping epsilon -> numpy array of EC values
     """
     rng = np.random.default_rng(seed)
@@ -332,9 +307,7 @@ def ECC_for_point_cloud(
     num: int = 200,
     max_dim: int | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    One-shot helper: build C at radius r_max, then compute/plot ECC on [r_min, r_max].
-    """
+    #One-shot helper: build C at radius r_max, then compute/plot ECC on [r_min, r_max].
     C = local_contributions_vr(X, r_max, max_dim=max_dim)
     return ECC_from_C(C, r_min, r_max, num=num)
 
@@ -420,15 +393,6 @@ def plot_point_cloud_on_ax(ax, X: np.ndarray, dim: int):
     ax.set_ylabel("PC2")
     ax.set_title(f"Point cloud (PCA 2D from dim={dim})")
     ax.axis("equal")
-
-
-
-# Top-level function: random_orthonormal_matrix
-def random_orthonormal_matrix(d: int, seed: int) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    A = rng.normal(size=(d, d))  # random matrix
-    Q, _ = np.linalg.qr(A)       # Q is orthonormal (random rotation matrix)
-    return Q
 
 def embed_in_ambient(
     X: np.ndarray,
@@ -634,7 +598,12 @@ def sample_point_cloud(
     
     raise ValueError(f"Unknown shape: {shape}. Choose normal blob, circle, disk, figure 8, cylinder, closed cylinder sphere, torus, or swiss roll.")
 
-
+# random orthonormal matrix function for rotation
+def random_orthonormal_matrix(d: int, seed: int) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    A = rng.normal(size=(d, d))  # random matrix
+    Q, _ = np.linalg.qr(A)       # Q is orthonormal (random rotation matrix)
+    return Q
 
 # GUI
 
@@ -767,7 +736,7 @@ class ECApp(tk.Tk):
         ttk.Entry(self.ctrl, textvariable=self.eps_max_var, width=12).grid(row=r, column=1, sticky="w")
         r += 1
 
-        ttk.Label(self.ctrl, text="Grid points (num)").grid(row=r, column=0, sticky="w")
+        ttk.Label(self.ctrl, text="ECC Steps").grid(row=r, column=0, sticky="w")
         self.num_var = tk.StringVar(value="300")
         ttk.Entry(self.ctrl, textvariable=self.num_var, width=12).grid(row=r, column=1, sticky="w")
         r += 1
@@ -966,7 +935,7 @@ class ECApp(tk.Tk):
                 for eps, v in zip(eps_list, vals):
                     self._log(f"  eps={eps:.6g}: chi={v}")
 
-                # Optional: simulation + histogram
+                # Optional: simulation + boxplot
                 if self.sim_var.get():
                     trials = int(self.trials_var.get())
                     sim_seed = int(self.sim_seed_var.get())
@@ -979,16 +948,27 @@ class ECApp(tk.Tk):
                         X=X,
                     )
 
-                    # Plot histogram(s) on the right axes
+                    # Box plot (one box per epsilon) is usually easier to read than overlaid histograms
                     self.ax_res.clear()
-                    for eps in eps_list:
-                        arr = results[eps]
-                        self.ax_res.hist(arr, bins=20, alpha=0.5, label=f"eps={eps:.3g}")
 
-                    self.ax_res.set_xlabel("EC")
-                    self.ax_res.set_ylabel("count")
-                    self.ax_res.set_title(f"Simulation Histogram (n={X.shape[0]}, trials={trials})")
-                    self.ax_res.legend()
+                    data = [results[eps] for eps in eps_list]
+                    labels = [f"{eps:.3g}" for eps in eps_list]
+
+                    bp = self.ax_res.boxplot(
+                        data,
+                        labels=labels,
+                        showfliers=True,
+                    )
+
+                    # Optional: overlay the individual trial values as jittered points
+                    rng = np.random.default_rng(sim_seed)
+                    for i, arr in enumerate(data, start=1):
+                        xj = rng.normal(loc=i, scale=0.05, size=arr.shape[0])
+                        self.ax_res.plot(xj, arr, marker="o", linestyle="None", markersize=3, alpha=0.35)
+
+                    self.ax_res.set_xlabel("epsilon")
+                    self.ax_res.set_ylabel("EC")
+                    self.ax_res.set_title(f"EC Simulation (n={X.shape[0]}, trials={trials})")
                     self.canvas.draw()
 
                     self._log("Simulation Summary:")
