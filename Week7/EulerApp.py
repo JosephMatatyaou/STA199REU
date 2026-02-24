@@ -968,7 +968,7 @@ class ECApp(tk.Tk):
 
                     self.ax_res.set_xlabel("epsilon")
                     self.ax_res.set_ylabel("EC")
-                    self.ax_res.set_title(f"EC Simulation (n={X.shape[0]}, trials={trials})")
+                    self.ax_res.set_title(f"EC Simulation (n={X.shape[0]}, trials={trials},\n max simplex dim={max_dim})")
                     self.canvas.draw()
 
                     self._log("Simulation Summary:")
