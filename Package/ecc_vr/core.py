@@ -46,7 +46,7 @@ def order_vertices_by_eps_neighbors(
     inv_perm[perm] = np.arange(len(perm))
     return perm, inv_perm
 
-def local_contributions_vr(
+def local_contributions(
     X: np.ndarray,
     epsilon: float,
     max_dim: int | None = None,
@@ -175,8 +175,6 @@ def plot_ECC_from_C(
     plt.ylabel("chi(r)")
     plt.title(title)
     plt.show()
-
-    return r_grid, ecc
 
 def chi( X: np.ndarray, eps: float, max_dim: int | None = None,) -> int:
     #Compute chi(eps) directly (no event list C).
