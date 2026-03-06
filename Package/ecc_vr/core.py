@@ -159,6 +159,8 @@ def plot_ECC_from_C(
     eps_max: float,
     num: int = 200,
     title: str = "Euler Characteristic Curve (ECC)",
+    xlabel: str = "Epsilon",
+    ylabel: str = "Euler Characteristic"
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Convenience function: compute ECC on [eps_min, eps_max] and plot it.
