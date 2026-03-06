@@ -56,7 +56,7 @@ __all__ = [
     # Core VR functions
     "Nplus",
     "order_vertices_by_eps_neighbors",
-    "local_contributions_vr",
+    "local_contributions",
     "EC_from_C",
     "ECC_from_C",
     "plot_ECC_from_C",
