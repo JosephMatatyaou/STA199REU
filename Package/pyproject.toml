@@ -1,11 +1,30 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "ecc-vr"
+version = "0.1.0"
+description = "Fast Vietoris-Rips complex and Euler characteristic computations for topological data analysis"
+readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["numpy>=1.20.0"]
-
-[project.optional-dependencies]
-viz = ["matplotlib>=3.3.0"]
-
+license = {text = "MIT"}
 authors = [
     {name = "Joseph Matatyaou", email = "jmatatyaousk8@gmail.com"}
 ]
+keywords = ["topology", "vietoris-rips", "euler-characteristic", "persistent-homology", "TDA"]
+
+dependencies = [
+    "numpy>=1.20.0",
+]
+
+[project.optional-dependencies]
+viz = ["matplotlib>=3.3.0"]
+dev = ["pytest>=6.0", "black>=21.0", "flake8>=3.9.0"]
+all = ["matplotlib>=3.3.0", "pytest>=6.0", "black>=21.0", "flake8>=3.9.0"]
+
+[project.urls]
+Homepage = "https://github.com/JosephMatatyaou/STA199REU"
+Repository = "https://github.com/JosephMatatyaou/STA199REU"
+Documentation = "https://github.com/JosephMatatyaou/STA199REU#readme"
+Issues = "https://github.com/JosephMatatyaou/STA199REU/issues"
