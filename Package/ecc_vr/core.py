@@ -173,8 +173,8 @@ def plot_ECC_from_C(
     # ECC is a right-continuous step function of epsilon
     plt.step(r_grid, ecc, where="post")
     plt.xlim(eps_min, eps_max)
-    plt.xlabel("epsilon (r)")
-    plt.ylabel("chi(r)")
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     plt.title(title)
     plt.show()
 
