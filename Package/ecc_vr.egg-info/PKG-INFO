@@ -1,0 +1,31 @@
+Metadata-Version: 2.4
+Name: ecc-vr
+Version: 0.1.0
+Summary: Fast Vietoris-Rips complex and Euler characteristic computations for topological data analysis
+Author-email: Joseph Matatyaou <jmatatyaousk8@gmail.com>
+License: MIT
+Project-URL: Homepage, https://github.com/JosephMatatyaou/STA199REU
+Project-URL: Repository, https://github.com/JosephMatatyaou/STA199REU
+Project-URL: Documentation, https://github.com/JosephMatatyaou/STA199REU#readme
+Project-URL: Issues, https://github.com/JosephMatatyaou/STA199REU/issues
+Keywords: topology,vietoris-rips,euler-characteristic,persistent-homology,TDA
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.20.0
+Provides-Extra: viz
+Requires-Dist: matplotlib>=3.3.0; extra == "viz"
+Provides-Extra: dev
+Requires-Dist: pytest>=6.0; extra == "dev"
+Requires-Dist: black>=21.0; extra == "dev"
+Requires-Dist: flake8>=3.9.0; extra == "dev"
+Provides-Extra: all
+Requires-Dist: matplotlib>=3.3.0; extra == "all"
+Requires-Dist: pytest>=6.0; extra == "all"
+Requires-Dist: black>=21.0; extra == "all"
+Requires-Dist: flake8>=3.9.0; extra == "all"
+Dynamic: license-file
+
+# ECC with VR Package
+
+Goal is to build a package that contains all of our relevant ECC with VR function to make things easier in the future.

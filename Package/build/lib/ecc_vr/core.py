@@ -161,10 +161,11 @@ def plot_ECC_from_C(
     title: str = "Euler Characteristic Curve (ECC)",
     xlabel: str = "Epsilon",
     ylabel: str = "Euler Characteristic"
-) -> None:
-    
-    #Convenience function: compute ECC on [eps_min, eps_max] and plot it.
-    
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Convenience function: compute ECC on [eps_min, eps_max] and plot it.
+    Returns (r_grid, ecc).
+    """
     import matplotlib.pyplot as plt
     r_grid, ecc = ECC_from_C(C, eps_min, eps_max, num=num)
 

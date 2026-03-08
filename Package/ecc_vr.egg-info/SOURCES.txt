@@ -1,0 +1,12 @@
+LICENSE
+README.md
+pyproject.toml
+ecc_vr/__init__.py
+ecc_vr/core.py
+ecc_vr/metrics.py
+ecc_vr/shapes.py
+ecc_vr.egg-info/PKG-INFO
+ecc_vr.egg-info/SOURCES.txt
+ecc_vr.egg-info/dependency_links.txt
+ecc_vr.egg-info/requires.txt
+ecc_vr.egg-info/top_level.txt
