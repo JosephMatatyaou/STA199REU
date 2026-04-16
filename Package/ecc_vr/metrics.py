@@ -47,13 +47,12 @@ def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1, sym_rule="min"):
     elif rule == "max":
         scale = np.minimum(si, sj)
     elif rule in {"mean", "avg", "average"}:
-        scale = (2.0 * si * sj) / (si + sj)
+        scale = (si * sj) / (si + sj)
     else:
         raise ValueError("sym_rule must be 'min', 'max', or 'mean'")
-
     D_w = D * scale
     np.fill_diagonal(D_w, 0.0)
-    return D_w, f
+    return D_w, scale
 
 def intersect_two_pointer(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     #Return the intersection of two sorted 1D integer arrays using two pointers.
