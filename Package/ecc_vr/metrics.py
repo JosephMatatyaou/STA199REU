@@ -16,12 +16,6 @@ def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1):
         KDE bandwidth.
     d_manifold : int
         Intrinsic dimension used in fhat and the density scaling.
-    sym_rule : {'min', 'max', 'mean'}
-        How to symmetrize the per-edge density scaling:
-        'min'  → divide by max(s_i, s_j)  (conservative)
-        'max'  → divide by min(s_i, s_j)  (aggressive)
-        'mean' → harmonic mean of s_i, s_j
-
     Returns
     -------
     D_w : array, shape (n, n)
@@ -41,7 +35,7 @@ def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1):
     si = s[:, None]
     sj = s[None, :]
 
-    scale = scale = (si * sj) / (si + sj)
+    scale = (2.0 * si * sj) / (si + sj)
     
     D_w = D * scale
     np.fill_diagonal(D_w, 0.0)
