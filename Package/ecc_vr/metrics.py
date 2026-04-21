@@ -119,7 +119,7 @@ def count_edges(X: np.ndarray, t: float, D: np.ndarray | None = None) -> int:
     epsilon = t/(X.shape[0]**(1/(X.shape[1]-1)))
 
     if D is None:
-        D = vr.pairwise_dist(X)
+        D = pairwise_dist(X)
     
     edge_count = int(np.count_nonzero(np.triu(D <= epsilon, k = 1)))
     return edge_count
