@@ -1,6 +1,5 @@
 import numpy as np
 import ecc_vr as vr
-import matplotlib.pyplot as plt
 import math
 
 def hemisphere_biased_hypersphere(
