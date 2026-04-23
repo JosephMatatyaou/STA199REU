@@ -4,7 +4,7 @@ def pairwise_dist(X: np.ndarray) -> np.ndarray:
     diff = X[:, None, :] - X[None, :, :]
     return np.linalg.norm(diff, axis = 2)
 
-def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1, sym_rule="min"):
+def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1):
     """
     Build a density-weighted distance matrix D_w such that running standard
     Vietoris–Rips on D_w is equivalent to a density-weighted filtration.
@@ -16,12 +16,6 @@ def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1, sym_rule="min"):
         KDE bandwidth.
     d_manifold : int
         Intrinsic dimension used in fhat and the density scaling.
-    sym_rule : {'min', 'max', 'mean'}
-        How to symmetrize the per-edge density scaling:
-        'min'  → divide by max(s_i, s_j)  (conservative)
-        'max'  → divide by min(s_i, s_j)  (aggressive)
-        'mean' → harmonic mean of s_i, s_j
-
     Returns
     -------
     D_w : array, shape (n, n)
@@ -41,19 +35,11 @@ def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1, sym_rule="min"):
     si = s[:, None]
     sj = s[None, :]
 
-    rule = sym_rule.lower().strip()
-    if rule == "min":
-        scale = np.maximum(si, sj)
-    elif rule == "max":
-        scale = np.minimum(si, sj)
-    elif rule in {"mean", "avg", "average"}:
-        scale = (2.0 * si * sj) / (si + sj)
-    else:
-        raise ValueError("sym_rule must be 'min', 'max', or 'mean'")
-
+    scale = (2.0 * si * sj) / (si + sj)
+    
     D_w = D * scale
     np.fill_diagonal(D_w, 0.0)
-    return D_w, f
+    return D_w, scale
 
 def intersect_two_pointer(a: np.ndarray, b: np.ndarray) -> np.ndarray:
     #Return the intersection of two sorted 1D integer arrays using two pointers.
@@ -120,3 +106,14 @@ def fhat(X, h=0.15, d_manifold=1):
     # KDE at each x_i
     f = K.sum(axis=1) / (n * (h ** d_manifold))   # (n,)
     return f
+
+def count_edges(X: np.ndarray, t: float, D: np.ndarray | None = None) -> int:
+    X = np.asarray(X, dtype = float)
+
+    epsilon = t/(X.shape[0]**(1/(X.shape[1]-1)))
+
+    if D is None:
+        D = pairwise_dist(X)
+    
+    edge_count = int(np.count_nonzero(np.triu(D <= epsilon, k = 1)))
+    return edge_count
