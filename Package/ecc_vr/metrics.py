@@ -4,7 +4,7 @@ def pairwise_dist(X: np.ndarray) -> np.ndarray:
     diff = X[:, None, :] - X[None, :, :]
     return np.linalg.norm(diff, axis = 2)
 
-def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1):
+def weighted_distance_matrix_kde(X, h=0.15):
     """
     Build a density-weighted distance matrix D_w such that running standard
     Vietoris–Rips on D_w is equivalent to a density-weighted filtration.
@@ -24,7 +24,8 @@ def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1):
         KDE values at each point.
     """
     X = np.asarray(X, dtype=float)
-
+    n, d = X.shape
+    d_manifold = d - 1
     D = pairwise_dist(X)
 
     f = fhat(X, h=h, d_manifold=d_manifold)
@@ -69,7 +70,7 @@ def random_orthonormal_matrix(d: int, seed: int) -> np.ndarray:
     Q, _ = np.linalg.qr(A)       # Q is orthonormal (random rotation matrix)
     return Q
 
-def fhat(X, h=0.15, d_manifold=1):
+def fhat(X, h=0.15):
     """
     Kernel Density Estimate at each sample point using a Gaussian kernel.
 
@@ -93,19 +94,32 @@ def fhat(X, h=0.15, d_manifold=1):
     scales as O(n^2 * m). For large n, consider chunking or scipy.spatial.distance.cdist.
     """
     X = np.asarray(X, dtype=float)
-    n, m = X.shape
+
+    n, d = X.shape
+
+    m = d - 1
 
     # Pairwise differences normalized by h: u_ij = (x_j - x_i) / h
-    diff = (X[None, :, :] - X[:, None, :]) / h   # (n, n, m)
 
+    """X[None, :, :] changes shape from (n,d) to (1,n,d)
+    X[:, None, :] changes shape from (n,d) to (n,1,d)
+    Numpy can then broadcast them to together creating (1,n,d) - (n,1,d) = (n,n,d)
+    so each pair (i,j) diff[i,j,:] = (x_j - x_i) / h.
+    So this fixes point x_i compares it to point x_j and subtracts coord by coord and then divides by h.
+    diff stores every scaled difference vector between every pair of points.
+    so diff is (n=first axis i,n = second axis j,d = coordinates). 
+    """
+    
+    diff = (X[None, :, :] - X[:, None, :]) / h   # (n, n, d)
+    D = np.linalg.norm(diff, axis = 2) # (n,n) axis 2 holds coordinates of the distance vector between x_i and x_j and summing across it collapses the broadcasted diff into the distance matrix divided by h
 
-    r2 = np.sum(diff ** 2, axis=2)                # (n, n), if this is distance matrix then we are good
+    r2 = diff ** 2   
 
     # Gaussian kernel in R^m
     K = np.exp(-0.5 * r2) / ((2 * np.pi) ** (m / 2))  # (n, n) 
 
     # KDE at each x_i
-    f = K.sum(axis=1) / (n * (h ** d_manifold))   # (n,)
+    f = K.sum(axis=1) / (n * (h ** m))   # (n,)
     return f
 
 def count_edges(X: np.ndarray, t: float, D: np.ndarray | None = None) -> int:
