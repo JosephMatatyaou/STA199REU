@@ -134,6 +134,8 @@ def hemisphere_biased_hypersphere_pdf(
     area = hypersphere_surface_area(d, r)
 
     pdf_vals = np.zeros(n_points, dtype=float)
+
+
     pdf_vals[on_sphere & (dots >= 0)] = 2.0 * p / area
     pdf_vals[on_sphere & (dots < 0)] = 2.0 * (1.0 - p) / area
 
@@ -171,12 +173,49 @@ def weighted_distance_matrix_pdf(
     si = s[:, None]
     sj = s[None, :]
 
-    scale = (si * sj) / (si + sj)
+    scale = ( 2.0 * si * sj) / (si + sj)
 
     D_w = D * scale
     np.fill_diagonal(D_w, 0.0)
-    return D_w, scale
+    return D_w, f
 
 
 
 # it should be norm less than t of n to 1 over d time ( 1 over kde(xi)^1/d)+ 1
+
+def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1):
+    """
+    Build a density-weighted distance matrix D_w such that running standard
+    Vietoris–Rips on D_w is equivalent to a density-weighted filtration.
+
+    Parameters
+    ----------
+    X : array, shape (n, m)
+    h : float
+        KDE bandwidth.
+    d_manifold : int
+        Intrinsic dimension used in fhat and the density scaling.
+    Returns
+    -------
+    D_w : array, shape (n, n)
+        Weighted distance matrix.
+    f : array, shape (n,)
+        KDE values at each point.
+    """
+    X = np.asarray(X, dtype=float)
+
+    D = vr.pairwise_dist(X)
+
+    f = vr.fhat(X, h=h, d_manifold=d_manifold)
+    f = np.maximum(f, 1e-12) # guard against zero density
+    f = f / f.mean()            
+    s = f ** (1.0 / d_manifold)         # (n,)
+
+    si = s[:, None]
+    sj = s[None, :]
+
+    scale = (2.0 * si * sj) / (si + sj)
+    
+    D_w = D * scale
+    np.fill_diagonal(D_w, 0.0)
+    return D_w, f

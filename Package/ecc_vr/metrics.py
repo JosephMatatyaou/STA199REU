@@ -28,8 +28,7 @@ def weighted_distance_matrix_kde(X, h=0.15, d_manifold=1):
     D = pairwise_dist(X)
 
     f = fhat(X, h=h, d_manifold=d_manifold)
-    f = np.maximum(f, 1e-12) # guard against zero density
-    f = f / f.mean()            
+    f = np.maximum(f, 1e-12) # guard against zero density         
     s = f ** (1.0 / d_manifold)         # (n,)
 
     si = s[:, None]
@@ -98,10 +97,12 @@ def fhat(X, h=0.15, d_manifold=1):
 
     # Pairwise differences normalized by h: u_ij = (x_j - x_i) / h
     diff = (X[None, :, :] - X[:, None, :]) / h   # (n, n, m)
-    r2 = np.sum(diff ** 2, axis=2)                # (n, n)
+
+
+    r2 = np.sum(diff ** 2, axis=2)                # (n, n), if this is distance matrix then we are good
 
     # Gaussian kernel in R^m
-    K = np.exp(-0.5 * r2) / ((2 * np.pi) ** (m / 2))  # (n, n)
+    K = np.exp(-0.5 * r2) / ((2 * np.pi) ** (m / 2))  # (n, n) 
 
     # KDE at each x_i
     f = K.sum(axis=1) / (n * (h ** d_manifold))   # (n,)
