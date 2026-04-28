@@ -35,6 +35,7 @@ from .metrics import (
     random_orthonormal_matrix,
     fhat,
     weighted_distance_matrix_kde,
+    count_edges,
 )
 
 
@@ -68,6 +69,7 @@ __all__ = [
     "random_orthonormal_matrix",
     "fhat",
     "weighted_distance_matrix_kde",
+    "count_edges",
     # Shapes
     "pca_project",
     "plot_point_cloud_on_ax",

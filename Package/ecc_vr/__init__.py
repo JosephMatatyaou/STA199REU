@@ -35,6 +35,7 @@ from .metrics import (
     random_orthonormal_matrix,
     fhat,
     weighted_distance_matrix_kde,
+    count_edges,
 )
 
 
