@@ -114,7 +114,7 @@ def scale_axes_target_volume(stretch, target_volume: float) -> np.ndarray:
 def edge_count_curve(X: np.ndarray, t_grid: np.ndarray) -> np.ndarray:
     return np.array([vr.count_edges(X, t = float(t)) for t in t_grid], dtype = float)
 
-def simulate_curves(point_cloud_sampler, n_resamples: int, t_grid: np.ndarray, seed: int | None):
+def simulate_edge_curves(point_cloud_sampler, n_resamples: int, t_grid: np.ndarray, seed: int | None):
     rng = np.random.default_rng(seed)
 
     curves = np.empty((n_resamples, len(t_grid)), dtype = float)
