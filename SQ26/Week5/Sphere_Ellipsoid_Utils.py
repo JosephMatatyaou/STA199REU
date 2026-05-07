@@ -1,8 +1,17 @@
 import numpy as np
 from math import gamma
 import ecc_vr as vr
+import matplotlib.pyplot as plt
 
-__all__ = ["unif_hypersphere", "unif_hyperellipsoid", "unit_ball_volume", "scale_axes_target_volume","edge_count_curve","simulate_curves","count_edges", "pairwise_dist"]
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    ConfusionMatrixDisplay,
+)
 
 def pairwise_dist(X: np.ndarray) -> np.ndarray:
     diff = X[:, None, :] - X[None, :, :]
@@ -17,6 +26,17 @@ def count_edges(X: np.ndarray, t: float, D: np.ndarray | None = None) -> int:
 
     if D is None:
         D = pairwise_dist(X)
+    
+    edge_count = int(np.count_nonzero(np.triu(D <= epsilon, k = 1)))
+    return edge_count
+
+def count_edges_kde(X: np.ndarray, t: float, h: float) -> int:
+    X = np.asarray(X, dtype = float)
+
+
+    epsilon = t/(X.shape[0]**(1/(X.shape[1]-1)))
+
+    D, _ = vr.weighted_distance_matrix_kde(X, h)
     
     edge_count = int(np.count_nonzero(np.triu(D <= epsilon, k = 1)))
     return edge_count
@@ -130,7 +150,33 @@ def scale_axes_target_volume(stretch, target_volume: float) -> np.ndarray:
 def edge_count_curve(X: np.ndarray, t_grid: np.ndarray) -> np.ndarray:
     return np.array([count_edges(X, t = float(t)) for t in t_grid], dtype = float)
 
+def edge_count_curve_kde(X: np.ndarray, t_grid: np.ndarray, h: float) -> np.ndarray:
+    return np.array([count_edges_kde(X, t=float(t), h=h) for t in t_grid], dtype=float)
 
+
+def simulate_edge_curves_kde(point_cloud_sampler, n_resamples: int, t_grid: np.ndarray, h: float, seed: int | None):
+    rng = np.random.default_rng(seed)
+
+    curves = np.empty((n_resamples, len(t_grid)), dtype = float)
+
+    for i in range(n_resamples):
+        sample_seed = int(rng.integers(0,1_000_000_000))
+        X = point_cloud_sampler(sample_seed)
+        curves[i] = edge_count_curve_kde(X, t_grid, h)
+
+    return curves
+
+def simulate_edge_curves_kde(point_cloud_sampler, n_resamples: int, t_grid: np.ndarray, h: float, seed: int | None):
+    rng = np.random.default_rng(seed)
+
+    curves = np.empty((n_resamples, len(t_grid)), dtype = float)
+
+    for i in range(n_resamples):
+        sample_seed = int(rng.integers(0,1_000_000_000))
+        X = point_cloud_sampler(sample_seed)
+        curves[i] = edge_count_curve_kde(X, t_grid, h)
+
+    return curves
 
 def simulate_edge_curves(point_cloud_sampler, n_resamples: int, t_grid: np.ndarray, seed: int | None):
     rng = np.random.default_rng(seed)
@@ -145,3 +191,143 @@ def simulate_edge_curves(point_cloud_sampler, n_resamples: int, t_grid: np.ndarr
     return curves
 
 
+
+def plot_sphere_ellipsoid_results(result):
+    t_grid = result["t_grid"]
+    curves_sphere = result["curves_sphere"]
+    curves_ellipsoid = result["curves_ellipsoid"]
+
+    mean1 = curves_sphere.mean(axis=0)
+    sd1 = curves_sphere.std(axis = 0, ddof = 1)
+
+    mean2 = curves_ellipsoid.mean(axis = 0)
+    sd2 = curves_ellipsoid.std(axis =0, ddof = 1)
+
+    fig, ax = plt.subplots(1, 2, figsize=(12, 4.5))
+
+    ax[0].plot(t_grid, mean1, lw = 2, label = "Sphere Edge Count Simulation Mean")
+    ax[0].fill_between(t_grid, mean1 - sd1, mean1 + sd1, alpha = 0.2)
+
+    ax[0].plot(t_grid, mean2, lw = 2, label = "Ellipsoid Edge Count Simulation Mean")
+    ax[0].fill_between(t_grid, mean2 - sd2, mean2 + sd2, alpha = 0.2)
+
+    ax[0].set_xlabel("t")
+    ax[0].set_ylabel("Edge Count")
+    ax[0].set_title("Edge Count Curves")
+    ax[0].legend()
+
+    ConfusionMatrixDisplay.from_predictions(
+        result["y_test"],
+        result["y_pred"],
+        display_labels=["Sphere", "Ellipsoid"],
+        cmap = "Blues",
+        ax=ax[1],
+    )
+    ax[1].set_title("Classifier Confusion Matrix")
+
+    plt.tight_layout()
+    plt.show()
+
+    print("Accuracy:", result["accuracy"])
+    print(result["report"])
+
+
+def count_triangles(X: np.ndarray, t: float) -> int:
+    X = np.asarray(X, dtype=float)
+
+    n, d = X.shape
+
+    epsilon = t / (n ** (1 / (d - 1)))
+
+    D = np.linalg.norm(X[:, None, :] - X[None, :, :], axis=2) # distance matrix
+
+    A = (D <= epsilon).astype(int) # creates adjacency matrix A where A[i,j] = 1 if points i and j are within epsilon distance otherwise A[i,j] = 0
+    np.fill_diagonal(A, 0) # sets diagonal entries to 0
+
+    A3 = A @ A @ A # entries of A^3 count the number of walks of length 3 between vertices
+        
+        # adds up diagonal entries of A^3 which counts all length-3 closed walks
+    triangles = np.trace(A3) // 6 # divide by 6 since each triangle is counted 6 times (3 choices of starting vertex and 2 directions around the triangle)
+
+    return int(triangles)
+
+def count_triangles_kde(X: np.ndarray, t: float, h: float) -> int:
+    X = np.asarray(X, dtype=float)
+
+    n, d = X.shape
+
+    epsilon = t / (n ** (1 / (d - 1)))
+
+    D, _ = vr.weighted_distance_matrix_kde(X, h = h) # distance matrix
+
+    A = (D <= epsilon).astype(int) # creates adjacency matrix A where A[i,j] = 1 if points i and j are within epsilon distance otherwise A[i,j] = 0
+    np.fill_diagonal(A, 0) # sets diagonal entries to 0
+
+    A3 = A @ A @ A # entries of A^3 count the number of walks of length 3 between vertices
+        
+        # adds up diagonal entries of A^3 which counts all length-3 closed walks
+    triangles = np.trace(A3) // 6 # divide by 6 since each triangle is counted 6 times (3 choices of starting vertex and 2 directions around the triangle)
+
+    return int(triangles)
+
+
+def triangle_count_curve(X: np.ndarray, t_grid: np.ndarray) -> np.ndarray:
+    return np.array([count_triangles(X, float(t)) for t in t_grid], dtype=float)
+
+def triangle_count_curve_kde(X: np.ndarray, t_grid: np.ndarray, h: float) -> np.ndarray:
+    return np.array([count_triangles_kde(X, float(t), h = h) for t in t_grid], dtype=float)
+
+def simulate_triangle_curves(point_cloud_sampler, n_resamples, t_grid, seed):
+    rng = np.random.default_rng(seed)
+    curves = np.empty((n_resamples, len(t_grid)), dtype=float)
+
+    for i in range(n_resamples):
+        sample_seed = int(rng.integers(0, 1_000_000_000))
+        X = point_cloud_sampler(sample_seed)
+        curves[i] = triangle_count_curve(X, t_grid)
+
+    return curves
+
+def simulate_triangle_curves_kde(point_cloud_sampler, n_resamples, t_grid, h, seed):
+    rng = np.random.default_rng(seed)
+    curves = np.empty((n_resamples, len(t_grid)), dtype=float)
+
+    for i in range(n_resamples):
+        sample_seed = int(rng.integers(0, 1_000_000_000))
+        X = point_cloud_sampler(sample_seed)
+        curves[i] = triangle_count_curve_kde(X, t_grid, h)
+
+    return curves
+
+def non_unif_hyperellipsoid(n_points, *stretch, r=1.0, center=None, seed=None):
+    """
+    Sample points on a hyperellipsoid boundary by sampling uniformly on the
+    sphere and then stretching coordinate-wise.
+    """
+    rng = np.random.default_rng(seed)
+
+    if len(stretch) == 1 and np.ndim(stretch[0]) != 0:
+        a = np.asarray(stretch[0], dtype=float)
+    else:
+        a = np.asarray(stretch, dtype=float)
+
+    if a.ndim != 1 or a.size == 0:
+        raise ValueError("Provide one positive stretch value per dimension.")
+    if np.any(a <= 0):
+        raise ValueError("All stretch values must be > 0.")
+    if r <= 0:
+        raise ValueError("r must be > 0.")
+
+    d = a.size
+
+    if center is None:
+        c = np.zeros(d, dtype=float)
+    else:
+        c = np.asarray(center, dtype=float)
+        if c.shape != (d,):
+            raise ValueError(f"center must have shape ({d},)")
+
+    g = rng.normal(size=(n_points, d))
+    u = g / np.linalg.norm(g, axis=1, keepdims=True)
+    X = c + (r * u) * a
+    return X
