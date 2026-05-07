@@ -2,8 +2,24 @@ import numpy as np
 from math import gamma
 import ecc_vr as vr
 
-__all__ = ["unif_hypersphere", "unif_hyperellipsoid", "unit_ball_volume", "scale_axes_target_volume","edge_count_curve","simulate_curves"]
+__all__ = ["unif_hypersphere", "unif_hyperellipsoid", "unit_ball_volume", "scale_axes_target_volume","edge_count_curve","simulate_curves","count_edges", "pairwise_dist"]
 
+def pairwise_dist(X: np.ndarray) -> np.ndarray:
+    diff = X[:, None, :] - X[None, :, :]
+    return np.linalg.norm(diff, axis = 2)
+
+
+# fallback so old code still works
+def count_edges(X: np.ndarray, t: float, D: np.ndarray | None = None) -> int:
+    X = np.asarray(X, dtype = float)
+
+    epsilon = t/(X.shape[0]**(1/(X.shape[1]-1)))
+
+    if D is None:
+        D = pairwise_dist(X)
+    
+    edge_count = int(np.count_nonzero(np.triu(D <= epsilon, k = 1)))
+    return edge_count
 
 def unif_hypersphere(n_points, d, r = 1.0, center = None, seed = None):
     # generate points uniformly on the surface of an n-dimensional hypersphere
@@ -112,9 +128,11 @@ def scale_axes_target_volume(stretch, target_volume: float) -> np.ndarray:
     return scale * stretch
 
 def edge_count_curve(X: np.ndarray, t_grid: np.ndarray) -> np.ndarray:
-    return np.array([vr.count_edges(X, t = float(t)) for t in t_grid], dtype = float)
+    return np.array([count_edges(X, t = float(t)) for t in t_grid], dtype = float)
 
-def simulate_edge_curves(point_cloud_sampler, n_resamples: int, t_grid: np.ndarray, seed: int | None):
+
+
+def simulate_curves(point_cloud_sampler, n_resamples: int, t_grid: np.ndarray, seed: int | None):
     rng = np.random.default_rng(seed)
 
     curves = np.empty((n_resamples, len(t_grid)), dtype = float)
