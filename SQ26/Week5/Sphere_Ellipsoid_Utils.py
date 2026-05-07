@@ -132,7 +132,7 @@ def edge_count_curve(X: np.ndarray, t_grid: np.ndarray) -> np.ndarray:
 
 
 
-def simulate_curves(point_cloud_sampler, n_resamples: int, t_grid: np.ndarray, seed: int | None):
+def simulate_edge_curves(point_cloud_sampler, n_resamples: int, t_grid: np.ndarray, seed: int | None):
     rng = np.random.default_rng(seed)
 
     curves = np.empty((n_resamples, len(t_grid)), dtype = float)
