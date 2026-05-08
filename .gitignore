@@ -12,3 +12,21 @@ __pycache__/
 
 # Conda / Anaconda
 anaconda_projects/
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+build/
+*.bbl
+*.bcf
