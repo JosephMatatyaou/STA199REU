@@ -8,7 +8,6 @@ __pycache__/
 
 # IDE / editor files
 .idea/
-.vscode/
 
 # Conda / Anaconda
 anaconda_projects/
@@ -30,3 +29,4 @@ anaconda_projects/
 build/
 *.bbl
 *.bcf
+*.vrb
